@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Env
+.env
+
+# Firebase secret
+firebase_key.json
+
+# Model cache (optional keep if large)
+*.h5
+*.pkl
