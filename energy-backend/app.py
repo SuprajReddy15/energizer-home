@@ -5,25 +5,25 @@ import jwt
 import datetime
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
+import os
 
-from config import MYSQL_CONFIG, JWT_SECRET
+from config import MYSQL_CONFIG, JWT_SECRET, FIREBASE_KEY_PATH
 from utils.predictor import predict_power
-from config import FIREBASE_KEY_PATH
+
 # ================= INIT =================
 
 app = Flask(__name__)
 CORS(app)
 
-# 🔥 Firebase Admin Init
-cred = credentials.Certificate(FIREBASE_KEY_PATH)
-firebase_admin.initialize_app(cred)
-
+# 🔥 Firebase Admin Init (safe)
+if not firebase_admin._apps:
+    cred = credentials.Certificate(FIREBASE_KEY_PATH)
+    firebase_admin.initialize_app(cred)
 
 # ================= DB =================
 
 def get_db():
     return mysql.connector.connect(**MYSQL_CONFIG)
-
 
 # ================= JWT =================
 
@@ -34,14 +34,12 @@ def generate_token(user_id):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-
 def verify_token(token):
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
     except Exception as e:
         print("Token error:", e)
         return None
-
 
 def auth_required(func):
     def wrapper(*args, **kwargs):
@@ -62,18 +60,15 @@ def auth_required(func):
     wrapper.__name__ = func.__name__
     return wrapper
 
-
 # ================= ROUTES =================
 
 @app.route("/")
 def home():
     return jsonify({"message": "Energy Analytics API is running"})
 
-
 # =====================================================
-# 🔥 NEW — FIREBASE LOGIN (PRODUCTION)
+# 🔥 FIREBASE LOGIN
 # =====================================================
-# ================= FIREBASE LOGIN =================
 
 @app.route("/auth/firebase-login", methods=["POST"])
 def firebase_login():
@@ -119,8 +114,6 @@ def firebase_login():
     except Exception as e:
         print("Firebase login error:", e)
         return jsonify({"error": "Firebase authentication failed"}), 401
-
-
 
 # ================= ADD ENERGY =================
 
@@ -173,7 +166,6 @@ def add_energy_reading():
         print("Energy insert error:", e)
         return jsonify({"error": str(e)}), 500
 
-
 # ================= HISTORY =================
 
 @app.route("/energy/history")
@@ -199,7 +191,6 @@ def history():
 
     return jsonify(rows)
 
-
 # ================= PREDICT =================
 
 @app.route("/predict")
@@ -208,8 +199,8 @@ def predict():
     predicted = predict_power(5.0)
     return jsonify({"predicted_power": predicted})
 
-
-# ================= RUN =================
+# ================= RUN (LOCAL ONLY) =================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
