@@ -11,6 +11,3 @@ __pycache__/
 # Firebase secret
 firebase_key.json
 
-# Model cache (optional keep if large)
-*.h5
-*.pkl
