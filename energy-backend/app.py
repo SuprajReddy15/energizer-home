@@ -6,6 +6,7 @@ import datetime
 import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
 import os
+from functools import wraps
 
 from config import MYSQL_CONFIG, JWT_SECRET, FIREBASE_KEY_PATH
 from utils.predictor import predict_power
@@ -34,6 +35,7 @@ def generate_token(user_id):
     }
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
+
 def verify_token(token):
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
@@ -41,8 +43,11 @@ def verify_token(token):
         print("Token error:", e)
         return None
 
+
 def auth_required(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
+
         auth_header = request.headers.get("Authorization", "")
 
         if not auth_header.startswith("Bearer "):
@@ -57,7 +62,6 @@ def auth_required(func):
         request.user = decoded
         return func(*args, **kwargs)
 
-    wrapper.__name__ = func.__name__
     return wrapper
 
 # ================= ROUTES =================
@@ -65,6 +69,7 @@ def auth_required(func):
 @app.route("/")
 def home():
     return jsonify({"message": "Energy Analytics API is running"})
+
 
 # =====================================================
 # 🔥 FIREBASE LOGIN
@@ -79,14 +84,12 @@ def firebase_login():
         if not id_token:
             return jsonify({"error": "Missing Firebase token"}), 400
 
-        # ✅ verify with Firebase
         decoded_token = firebase_auth.verify_id_token(id_token)
         email = decoded_token.get("email")
 
         if not email:
             return jsonify({"error": "Email not found"}), 400
 
-        # ✅ check/create user in MySQL
         conn = get_db()
         cur = conn.cursor(dictionary=True)
 
@@ -103,7 +106,6 @@ def firebase_login():
         else:
             user_id = user["id"]
 
-        # ✅ generate YOUR JWT
         token = generate_token(user_id)
 
         cur.close()
@@ -115,11 +117,13 @@ def firebase_login():
         print("Firebase login error:", e)
         return jsonify({"error": "Firebase authentication failed"}), 401
 
+
 # ================= ADD ENERGY =================
 
 @app.route("/energy", methods=["POST"])
 @auth_required
 def add_energy_reading():
+
     try:
         data = request.get_json()
 
@@ -132,7 +136,6 @@ def add_energy_reading():
 
         user_id = request.user["user_id"]
 
-        # ✅ ISO → MySQL datetime
         if timestamp:
             try:
                 timestamp = datetime.datetime.fromisoformat(
@@ -166,11 +169,13 @@ def add_energy_reading():
         print("Energy insert error:", e)
         return jsonify({"error": str(e)}), 500
 
+
 # ================= HISTORY =================
 
 @app.route("/energy/history")
 @auth_required
 def history():
+
     user_id = request.user["user_id"]
 
     conn = get_db()
@@ -191,16 +196,24 @@ def history():
 
     return jsonify(rows)
 
+
 # ================= PREDICT =================
 
 @app.route("/predict")
 @auth_required
 def predict():
-    predicted = predict_power(5.0)
-    return jsonify({"predicted_power": predicted})
 
-# ================= RUN (LOCAL ONLY) =================
+    try:
+        predicted = predict_power(5.0)
+        return jsonify({"predicted_power": predicted})
+    except Exception as e:
+        print("Prediction error:", e)
+        return jsonify({"error": "Prediction failed"}), 500
+
+
+# ================= RUN =================
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
+    print("🚀 Starting server on port:", port)
     app.run(host="0.0.0.0", port=port)
