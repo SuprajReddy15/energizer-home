@@ -47,7 +47,6 @@ def verify_token(token):
 def auth_required(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-
         auth_header = request.headers.get("Authorization", "")
 
         if not auth_header.startswith("Bearer "):
@@ -71,9 +70,7 @@ def home():
     return jsonify({"message": "Energy Analytics API is running"})
 
 
-# =====================================================
-# 🔥 FIREBASE LOGIN
-# =====================================================
+# ================= FIREBASE LOGIN =================
 
 @app.route("/auth/firebase-login", methods=["POST"])
 def firebase_login():
@@ -202,7 +199,6 @@ def history():
 @app.route("/predict")
 @auth_required
 def predict():
-
     try:
         predicted = predict_power(5.0)
         return jsonify({"predicted_power": predicted})
